@@ -141,8 +141,8 @@ namespace boost { namespace polygon{
       return retval;
     }
 
-    //returns true is the segment intersects the integer grid square with lower
-    //left corner at point
+    //returns true is the segment intersects the integer grid square [0,1)^2
+    //translated to point.
     static inline bool intersects_grid(Point pt, const half_edge& he) {
       if(pt == he.second) return true;
       if(pt == he.first) return true;
@@ -483,7 +483,7 @@ namespace boost { namespace polygon{
       }
 
       inline bool compute_intersection(Point& intersection, const half_edge& he1, const half_edge& he2,
-                                       bool projected = false, bool round_closest = false) {
+                                       bool projected = false) {
         if(!projected && !intersects(he1, he2))
            return false;
         bool lazy_success = compute_lazy_intersection(intersection, he1, he2, projected);
@@ -496,11 +496,11 @@ namespace boost { namespace polygon{
         } else {
           return lazy_success;
         }
-        return compute_exact_intersection(intersection, he1, he2, projected, round_closest);
+        return compute_exact_intersection(intersection, he1, he2, projected);
       }
 
       inline bool compute_exact_intersection(Point& intersection, const half_edge& he1, const half_edge& he2,
-                                             bool projected = false, bool round_closest = false) {
+                                             bool projected = false) {
         if(!projected && !intersects(he1, he2))
            return false;
         typedef rectangle_data<Unit> Rectangle;
@@ -559,10 +559,6 @@ namespace boost { namespace polygon{
         //std::cout << "cross2 " << dy2 << " " << dx1 << " " << dy2 * dx1 << "\n";
         //Unit exp_x = compute_x_intercept<at>(x11, x21, y11, y21, dy1, dy2, dx1, dx2);
         //Unit exp_y = compute_x_intercept<at>(y11, y21, x11, x21, dx1, dx2, dy1, dy2);
-        if(round_closest) {
-          x = x + (high_precision)0.5;
-          y = y + (high_precision)0.5;
-        }
         Unit x_unit = convert_high_precision_type<Unit>(x);
         Unit y_unit = convert_high_precision_type<Unit>(y);
         //truncate downward if it went up due to negative number
@@ -580,6 +576,26 @@ namespace boost { namespace polygon{
         Point result(x_unit, y_unit);
         if(!contains(rect1, result, true)) return false;
         if(!contains(rect2, result, true)) return false;
+
+        // There are rare cases where `high_precision` was not enough to determine the exact intersection. In these
+        // cases, `result` may be incorrectly rounded down in either or both coordinates. However, subsequent code
+        // assumes that this function determines exact intersections (in the sense that we determined the unique grid
+        // point such that [0,1)^2 translated to that point contains the intersection). To fulfil this guarantee,
+        // we explicitly query `intersects_grid` and shift the computed intersection point if necessary.
+        if (!intersects_grid(result, he1) || !intersects_grid(result, he2)) {
+          const Point candidate10(x_unit + 1, y_unit);
+          const Point candidate01(x_unit, y_unit + 1);
+          const Point candidate11(x_unit + 1, y_unit + 1);
+          if (intersects_grid(candidate10, he1) && intersects_grid(candidate10, he2)) {
+            result = candidate10;
+          } else if (intersects_grid(candidate01, he1) && intersects_grid(candidate01, he2)) {
+            result = candidate01;
+          } else if (intersects_grid(candidate11, he1) && intersects_grid(candidate11, he2)) {
+            result = candidate11;
+          }
+          // not sure what to do if all these candidates fail.
+        }
+
         if(projected) {
           high_precision b1 = (high_precision) (std::numeric_limits<Unit>::min)();
           high_precision b2 = (high_precision) (std::numeric_limits<Unit>::max)();
