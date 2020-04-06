@@ -14,4 +14,6 @@ add_library(Boost::polygon ALIAS boost_polygon)
 
 target_include_directories(boost_polygon INTERFACE include)
 
-target_link_libraries(boost_polygon INTERFACE Boost::config)
+#target_link_libraries(boost_polygon INTERFACE Boost::config)
+
+add_subdirectory(test)

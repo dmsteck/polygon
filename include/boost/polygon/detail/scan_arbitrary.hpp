@@ -1211,32 +1211,37 @@ namespace boost { namespace polygon{
     void scan(result_type& result, result_functor rf, iT begin, iT end) {
       while(begin != end) {
         x_ = (*begin).first.first.get(HORIZONTAL); //update scanline stop location
-        //print_scanline();
+
+        if (x_ == -3078274) {
+            std::cout << "At x: " << x_ << std::endl;
+        }
+
+        print_scanline();
         --x_;
         remove_retired_edges_from_scanline();
         ++x_;
         begin = handle_input_events(result, rf, begin, end);
         remove_retired_edges_from_scanline();
-        //print_scanline();
+        print_scanline();
         insert_new_edges_into_scanline();
       }
-      //print_scanline();
+      print_scanline();
       x_ = (std::numeric_limits<Unit>::max)();
       remove_retired_edges_from_scanline();
     }
 
-    //inline void print_scanline() {
-    //  std::cout << "scanline at " << x_ << ": ";
-    //  for(iterator itr = scan_data_.begin(); itr != scan_data_.end(); ++itr) {
-    //    const scanline_element& se = *itr;
-    //    const half_edge& he = se.first;
-    //    const property_map& mp = se.second;
-    //    std::cout << he.first << ", " << he.second << " ( ";
-    //    for(std::size_t i = 0; i < mp.size(); ++i) {
-    //      std::cout << mp[i].first << ":" << mp[i].second << " ";
-    //    } std::cout << ") ";
-    //  } std::cout << "\n";
-    //}
+    inline void print_scanline() {
+      std::cout << "scanline at " << x_ << ": ";
+      for(iterator itr = scan_data_.begin(); itr != scan_data_.end(); ++itr) {
+        const scanline_element& se = *itr;
+        const half_edge& he = se.first;
+        const property_map& mp = se.second;
+        std::cout << he.first.x() << ", " << he.first.y() << "; " << he.second.x() << ", " << he.second.y() << " ( ";
+        for(std::size_t i = 0; i < mp.size(); ++i) {
+          std::cout << mp[i].first << ":" << mp[i].second << " ";
+        } std::cout << ") ";
+      } std::cout << "\n";
+    }
 
     static inline void merge_property_maps(property_map& mp, const property_map& mp2) {
       property_map newmp;

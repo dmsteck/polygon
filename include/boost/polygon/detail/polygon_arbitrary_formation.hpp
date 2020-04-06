@@ -141,8 +141,8 @@ namespace boost { namespace polygon{
       return retval;
     }
 
-    //returns true is the segment intersects the integer grid square with lower
-    //left corner at point
+    //returns true is the segment intersects the integer grid square [0,1)^2
+    //translated to point.
     static inline bool intersects_grid(Point pt, const half_edge& he) {
       if(pt == he.second) return true;
       if(pt == he.first) return true;
@@ -483,7 +483,7 @@ namespace boost { namespace polygon{
       }
 
       inline bool compute_intersection(Point& intersection, const half_edge& he1, const half_edge& he2,
-                                       bool projected = false, bool round_closest = false) {
+                                       bool projected = false) {
         if(!projected && !intersects(he1, he2))
            return false;
         bool lazy_success = compute_lazy_intersection(intersection, he1, he2, projected);
@@ -496,11 +496,11 @@ namespace boost { namespace polygon{
         } else {
           return lazy_success;
         }
-        return compute_exact_intersection(intersection, he1, he2, projected, round_closest);
+        return compute_exact_intersection(intersection, he1, he2, projected);
       }
 
       inline bool compute_exact_intersection(Point& intersection, const half_edge& he1, const half_edge& he2,
-                                             bool projected = false, bool round_closest = false) {
+                                             bool projected = false) {
         if(!projected && !intersects(he1, he2))
            return false;
         typedef rectangle_data<Unit> Rectangle;
@@ -559,10 +559,6 @@ namespace boost { namespace polygon{
         //std::cout << "cross2 " << dy2 << " " << dx1 << " " << dy2 * dx1 << "\n";
         //Unit exp_x = compute_x_intercept<at>(x11, x21, y11, y21, dy1, dy2, dx1, dx2);
         //Unit exp_y = compute_x_intercept<at>(y11, y21, x11, x21, dx1, dx2, dy1, dy2);
-        if(round_closest) {
-          x = x + (high_precision)0.5;
-          y = y + (high_precision)0.5;
-        }
         Unit x_unit = convert_high_precision_type<Unit>(x);
         Unit y_unit = convert_high_precision_type<Unit>(y);
         //truncate downward if it went up due to negative number
@@ -580,6 +576,26 @@ namespace boost { namespace polygon{
         Point result(x_unit, y_unit);
         if(!contains(rect1, result, true)) return false;
         if(!contains(rect2, result, true)) return false;
+
+        // There are rare cases where `high_precision` was not enough to determine the exact intersection. In these
+        // cases, `result` may be incorrectly rounded down in either or both coordinates. However, subsequent code
+        // assumes that this function determines exact intersections (in the sense that we determined the unique grid
+        // point such that [0,1)^2 translated to that point contains the intersection). To fulfil this guarantee,
+        // we explicitly query `intersects_grid` and shift the computed intersection point if necessary.
+        if (!intersects_grid(result, he1) || !intersects_grid(result, he2)) {
+          const Point candidate10(x_unit + 1, y_unit);
+          const Point candidate01(x_unit, y_unit + 1);
+          const Point candidate11(x_unit + 1, y_unit + 1);
+          if (intersects_grid(candidate10, he1) && intersects_grid(candidate10, he2)) {
+            result = candidate10;
+          } else if (intersects_grid(candidate01, he1) && intersects_grid(candidate01, he2)) {
+            result = candidate01;
+          } else if (intersects_grid(candidate11, he1) && intersects_grid(candidate11, he2)) {
+            result = candidate11;
+          }
+          // not sure what to do if all these candidates fail.
+        }
+
         if(projected) {
           high_precision b1 = (high_precision) (std::numeric_limits<Unit>::min)();
           high_precision b2 = (high_precision) (std::numeric_limits<Unit>::max)();
@@ -587,6 +603,11 @@ namespace boost { namespace polygon{
             return false;
         }
         intersection = result;
+
+        if (result.x() == -2288162) {
+            std::cout << "Found point" << std::endl;
+        }
+
         return true;
       }
     };
@@ -1368,7 +1389,12 @@ namespace boost { namespace polygon{
     template <class cT, class cT2>
     inline std::pair<std::pair<Point, int>, active_tail_arbitrary*> processPoint_(cT& output, cT2& elements, Point point,
                                                                                   incoming_count& counts_from_scanline, vertex_arbitrary_count& incoming_count) {
-      //std::cout << "\nAT POINT: " <<  point << "\n";
+      std::cout << "\nAT POINT: " <<  point.x() << ", " << point.y() << "\n";
+
+      if (point.x() == -3078274) {
+          std::cout << "found point" << std::endl;
+      }
+
       //join any closing solid corners
       std::vector<int> counts;
       std::vector<int> incoming;
@@ -1400,25 +1426,26 @@ namespace boost { namespace polygon{
         have_vertical_tail_from_below = true;
       }
       //assert size = size_less_1 + 1
-      //std::cout << tails.size() << " " << incoming.size() << " " << counts_from_scanline.size() << " " << incoming_count.size() << "\n";
-      //         for(std::size_t i = 0; i < counts.size(); ++i) {
-      //           std::cout << counts_from_scanline[i].first.first.first.get(HORIZONTAL) << ",";
-      //           std::cout << counts_from_scanline[i].first.first.first.get(VERTICAL) << " ";
-      //           std::cout << counts_from_scanline[i].first.first.second.get(HORIZONTAL) << ",";
-      //           std::cout << counts_from_scanline[i].first.first.second.get(VERTICAL) << ":";
-      //           std::cout << counts_from_scanline[i].first.second << " ";
-      //         } std::cout << "\n";
-      //         print(incoming_count);
+      std::cout << tails.size() << " " << incoming.size() << " " << counts_from_scanline.size() << " " << incoming_count.size() << "\n";
+               for(std::size_t i = 0; i < counts.size(); ++i) {
+                 std::cout << counts_from_scanline[i].first.first.first.get(HORIZONTAL) << ",";
+                 std::cout << counts_from_scanline[i].first.first.first.get(VERTICAL) << " ";
+                 std::cout << counts_from_scanline[i].first.first.second.get(HORIZONTAL) << ",";
+                 std::cout << counts_from_scanline[i].first.first.second.get(VERTICAL) << ":";
+                 std::cout << counts_from_scanline[i].first.second << " ";
+               } std::cout << "\n";
+               print(incoming_count);
       {
+          std::cout << "processPoint_ 1st fat loop" << std::endl;
         for(int i = 0; i < c_size_less_1; ++i) {
-          //std::cout << i << "\n";
+          std::cout << i << "\n";
           if(counts[i] == -1) {
-            //std::cout << "fixed i\n";
+            std::cout << "fixed i\n";
             for(int j = i + 1; j < c_size; ++j) {
               //std::cout << j << "\n";
               if(counts[j]) {
                 if(counts[j] == 1) {
-                  //std::cout << "case1: " << i << " " << j << "\n";
+                  std::cout << "case1: " << i << " " << j << "\n";
                   //if a figure is closed it will be written out by this function to output
                   active_tail_arbitrary::joinChains(point, tails[i], tails[j], true, output);
                   counts[i] = 0;
@@ -1435,35 +1462,36 @@ namespace boost { namespace polygon{
       //find any pairs of incoming edges that need to create pair for leading solid
       //std::cout << "checking case2\n";
       {
+          std::cout << "processPoint_ 2nd fat loop" << std::endl;
         for(int i = 0; i < i_size_less_1; ++i) {
-          //std::cout << i << "\n";
+          std::cout << i << "\n";
           if(incoming[i] == 1) {
-            //std::cout << "fixed i\n";
+            std::cout << "fixed i\n";
             for(int j = i + 1; j < i_size; ++j) {
-              //std::cout << j << "\n";
+              std::cout << j << "\n";
               if(incoming[j]) {
-                //std::cout << incoming[j] << "\n";
+                std::cout << incoming[j] << "\n";
                 if(incoming[j] == -1) {
-                  //std::cout << "case2: " << i << " " << j << "\n";
-                  //std::cout << "creating active tail pair\n";
+                  std::cout << "case2: " << i << " " << j << "\n";
+                  std::cout << "creating active tail pair\n";
                   std::pair<active_tail_arbitrary*, active_tail_arbitrary*> tailPair =
                     active_tail_arbitrary::createActiveTailsAsPair(point, true, 0, fractureHoles_ != 0);
-                  //tailPair.first->print();
-                  //tailPair.second->print();
+                  tailPair.first->print();
+                  tailPair.second->print();
                   if(j == i_size_less_1 && incoming_count[j].first.get(HORIZONTAL) == point.get(HORIZONTAL)) {
                     //vertical active tail becomes return value
                     returnValue = tailPair.first;
                     returnCount.first = point;
                     returnCount.second = 1;
                   } else {
-                    //std::cout << "new element " << j-1 << " " << -1 << "\n";
-                    //std::cout << point << " " <<  incoming_count[j].first << "\n";
+                    std::cout << "new element " << j-1 << " " << -1 << "\n";
+                    std::cout << point.x() << ", " << point.y() << "; " <<  incoming_count[j].first.x() << ", " << incoming_count[j].first.y() << "\n";
                     elements.push_back(std::pair<vertex_half_edge,
                                        active_tail_arbitrary*>(vertex_half_edge(point,
                                                                                 incoming_count[j].first, -1), tailPair.first));
                   }
-                  //std::cout << "new element " << i-1 << " " << 1 << "\n";
-                  //std::cout << point << " " <<  incoming_count[i].first << "\n";
+                  std::cout << "new element " << i-1 << " " << 1 << "\n";
+                  std::cout << point.x() << ", " << point.y() << "; " << " " <<  incoming_count[i].first.x() << ", " << incoming_count[i].first.y() << "\n";
                   elements.push_back(std::pair<vertex_half_edge,
                                      active_tail_arbitrary*>(vertex_half_edge(point,
                                                                               incoming_count[i].first, 1), tailPair.second));
@@ -1481,20 +1509,21 @@ namespace boost { namespace polygon{
 
       //find pass through with solid on top
       {
+          std::cout << "processPoint_ 3rd fat loop" << std::endl;
         //std::cout << "checking case 3\n";
         for(int i = 0; i < c_size; ++i) {
-          //std::cout << i << "\n";
+          std::cout << i << "\n";
           if(counts[i] != 0) {
             if(counts[i] == 1) {
-              //std::cout << "fixed i\n";
+              std::cout << "fixed i\n";
               for(int j = i_size_less_1; j >= 0; --j) {
                 if(incoming[j] != 0) {
                   if(incoming[j] == 1) {
-                    //std::cout << "case3: " << i << " " << j << "\n";
-                    //tails[i]->print();
+                    std::cout << "case3: " << i << " " << j << "\n";
+                    tails[i]->print();
                     //pass through solid on top
                     tails[i]->pushPoint(point);
-                    //std::cout << "after push\n";
+                    std::cout << "after push\n";
                     if(j == i_size_less_1 && incoming_count[j].first.get(HORIZONTAL) == point.get(HORIZONTAL)) {
                       returnValue = tails[i];
                       returnCount.first = point;
@@ -1519,14 +1548,15 @@ namespace boost { namespace polygon{
       //std::cout << "checking case 4\n";
       //find pass through with solid on bottom
       {
+          std::cout << "processPoint_ 4th fat loop" << std::endl;
         for(int i = c_size_less_1; i >= 0; --i) {
-          //std::cout << "i = " << i << " with count " << counts[i] << "\n";
+          std::cout << "i = " << i << " with count " << counts[i] << "\n";
           if(counts[i] != 0) {
             if(counts[i] == -1) {
               for(int j = 0; j < i_size; ++j) {
                 if(incoming[j] != 0) {
                   if(incoming[j] == -1) {
-                    //std::cout << "case4: " << i << " " << j << "\n";
+                    std::cout << "case4: " << i << " " << j << "\n";
                     //pass through solid on bottom
                     tails[i]->pushPoint(point);
                     if(j == i_size_less_1 && incoming_count[j].first.get(HORIZONTAL) == point.get(HORIZONTAL)) {
@@ -1534,8 +1564,8 @@ namespace boost { namespace polygon{
                       returnCount.first = point;
                       returnCount.second = 1;
                     } else {
-                      //std::cout << "new element " << j-1 << " " << incoming[j] << "\n";
-                      //std::cout << point << " " <<  incoming_count[j].first << "\n";
+                      std::cout << "new element " << j-1 << " " << incoming[j] << "\n";
+                      std::cout << point.x() << ", " << point.y() << "; " <<  incoming_count[j].first.x() << ", " << incoming_count[j].first.y() << "\n";
                       elements.push_back(std::pair<vertex_half_edge,
                                          active_tail_arbitrary*>(vertex_half_edge(point,
                                                                                   incoming_count[j].first, incoming[j]), tails[i]));
@@ -1556,15 +1586,16 @@ namespace boost { namespace polygon{
 
       //find end of a hole
       {
+          std::cout << "processPoint_ 5th fat loop" << std::endl;
         for(int i = 0; i < c_size_less_1; ++i) {
           if(counts[i] != 0) {
             for(int j = i+1; j < c_size; ++j) {
               if(counts[j] != 0) {
-                //std::cout << "case5: " << i << " " << j << "\n";
+                std::cout << "case5: " << i << " " << j << "\n";
                 //we are ending a hole and may potentially close a figure and have to handle the hole
                 returnValue = active_tail_arbitrary::joinChains(point, tails[i], tails[j], false, output);
                 if(returnValue) returnCount.first = point;
-                //std::cout << returnValue << "\n";
+                std::cout << returnValue << "\n";
                 tails[i] = 0;
                 tails[j] = 0;
                 counts[i] = 0;
@@ -1578,11 +1609,12 @@ namespace boost { namespace polygon{
       }
       //find beginning of a hole
       {
+          std::cout << "processPoint_ 6th fat loop" << std::endl;
         for(int i = 0; i < i_size_less_1; ++i) {
           if(incoming[i] != 0) {
             for(int j = i+1; j < i_size; ++j) {
               if(incoming[j] != 0) {
-                //std::cout << "case6: " << i << " " << j << "\n";
+                std::cout << "case6: " << i << " " << j << "\n";
                 //we are beginning a empty space
                 active_tail_arbitrary* holep = 0;
                 //if(c_size && counts[c_size_less_1] == 0 &&
@@ -1595,20 +1627,20 @@ namespace boost { namespace polygon{
                 std::pair<active_tail_arbitrary*, active_tail_arbitrary*> tailPair =
                   active_tail_arbitrary::createActiveTailsAsPair(point, false, holep, fractureHoles_ != 0);
                 if(j == i_size_less_1 && incoming_count[j].first.get(HORIZONTAL) == point.get(HORIZONTAL)) {
-                  //std::cout << "vertical element " << point << "\n";
+                  std::cout << "vertical element " << point.x() << ", " << point.y()  << "\n";
                   returnValue = tailPair.first;
                   returnCount.first = point;
                   //returnCount = incoming_count[j];
                   returnCount.second = -1;
                 } else {
-                  //std::cout << "new element " << j-1 << " " << incoming[j] << "\n";
-                  //std::cout << point << " " <<  incoming_count[j].first << "\n";
+                  std::cout << "new element " << j-1 << " " << incoming[j] << "\n";
+                  std::cout << point.x() << ", " << point.y() << "; " <<  incoming_count[j].first.x() << ", " << incoming_count[j].first.y() << "\n";
                   elements.push_back(std::pair<vertex_half_edge,
                                      active_tail_arbitrary*>(vertex_half_edge(point,
                                                                               incoming_count[j].first, incoming[j]), tailPair.first));
                 }
-                //std::cout << "new element " << i-1 << " " << incoming[i] << "\n";
-                //std::cout << point << " " <<  incoming_count[i].first << "\n";
+                std::cout << "new element " << i-1 << " " << incoming[i] << "\n";
+                std::cout << point.x() << ", " << point.y() << "; " <<  incoming_count[i].first.x() << ", " << incoming_count[i].first.y() << "\n";
                 elements.push_back(std::pair<vertex_half_edge,
                                    active_tail_arbitrary*>(vertex_half_edge(point,
                                                                             incoming_count[i].first, incoming[i]), tailPair.second));
@@ -1622,6 +1654,7 @@ namespace boost { namespace polygon{
         }
       }
       if(have_vertical_tail_from_below) {
+          std::cout << "have_vertical_tail_from_below" << std::endl;
         if(tails.back()) {
           tails.back()->pushPoint(point);
           returnValue = tails.back();
@@ -1667,6 +1700,7 @@ namespace boost { namespace polygon{
         //std::cout << "scanline size " << scanData_.size() << "\n";
         //print(scanData_);
         iterator iter = lookUp_(currentY);
+        //assert(iter != scanData_.end());
         //std::cout << "found element in scanline " << (iter != scanData_.end()) << "\n";
         //int counts[4] = {0, 0, 0, 0};
         incoming_count counts_from_scanline;
@@ -1687,6 +1721,11 @@ namespace boost { namespace polygon{
           ++iter;
         }
         Point currentPoint(x_, currentY);
+
+        if (currentPoint.x() == -3078274) {
+            std::cout << "found point" << std::endl;
+        }
+
         //std::cout << "counts_from_scanline size " << counts_from_scanline.size() << "\n";
         sort_incoming_count(counts_from_scanline, currentPoint);
 
@@ -1765,6 +1804,7 @@ namespace boost { namespace polygon{
               verticalTail = 0;
             } else {
               //std::cout << "push hole onto list\n";
+              //assert(iter != scanData_.end());
               iter->second->addHole(verticalTail);
               verticalTail = 0;
             }
