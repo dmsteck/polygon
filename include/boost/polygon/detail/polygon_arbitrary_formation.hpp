@@ -581,7 +581,7 @@ namespace boost { namespace polygon{
         if(!contains(rect1, result, true)) return false;
         if(!contains(rect2, result, true)) return false;
 
-        // There are rare cases where `high_precision` was not enough to determine the exact intersection. In these
+        // There are rare cases where `high_precision` is not enough to determine the exact intersection. In these
         // cases, `result` may be incorrectly rounded down in either or both coordinates. However, subsequent code
         // assumes that this function determines exact intersections (in the sense that we determined the unique grid
         // point such that [0,1)^2 translated to that point contains the intersection). To fulfil this guarantee,
