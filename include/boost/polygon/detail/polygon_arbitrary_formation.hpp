@@ -583,7 +583,7 @@ namespace boost { namespace polygon{
 
         // There are rare cases where `high_precision` is not enough to determine the exact intersection. In these
         // cases, `result` may be incorrectly rounded down in either or both coordinates. However, subsequent code
-        // assumes that this function determines exact intersections (in the sense that we determined the unique grid
+        // assumes that this function determines exact intersections (in the sense that we determine the unique grid
         // point such that [0,1)^2 translated to that point contains the intersection). To fulfil this guarantee,
         // we explicitly query `intersects_grid` and shift the computed intersection point if necessary.
         if (!round_closest && !(intersects_grid(result, he1) && intersects_grid(result, he2))) {
