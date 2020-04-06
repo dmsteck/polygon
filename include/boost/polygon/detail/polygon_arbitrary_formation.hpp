@@ -483,7 +483,7 @@ namespace boost { namespace polygon{
       }
 
       inline bool compute_intersection(Point& intersection, const half_edge& he1, const half_edge& he2,
-                                       bool projected = false) {
+                                       bool projected = false, bool round_closest = false) {
         if(!projected && !intersects(he1, he2))
            return false;
         bool lazy_success = compute_lazy_intersection(intersection, he1, he2, projected);
@@ -496,11 +496,11 @@ namespace boost { namespace polygon{
         } else {
           return lazy_success;
         }
-        return compute_exact_intersection(intersection, he1, he2, projected);
+        return compute_exact_intersection(intersection, he1, he2, projected, round_closest);
       }
 
       inline bool compute_exact_intersection(Point& intersection, const half_edge& he1, const half_edge& he2,
-                                             bool projected = false) {
+                                             bool projected = false, bool round_closest = false) {
         if(!projected && !intersects(he1, he2))
            return false;
         typedef rectangle_data<Unit> Rectangle;
@@ -559,6 +559,10 @@ namespace boost { namespace polygon{
         //std::cout << "cross2 " << dy2 << " " << dx1 << " " << dy2 * dx1 << "\n";
         //Unit exp_x = compute_x_intercept<at>(x11, x21, y11, y21, dy1, dy2, dx1, dx2);
         //Unit exp_y = compute_x_intercept<at>(y11, y21, x11, x21, dx1, dx2, dy1, dy2);
+        if(round_closest) {
+          x = x + (high_precision)0.5;
+          y = y + (high_precision)0.5;
+        }
         Unit x_unit = convert_high_precision_type<Unit>(x);
         Unit y_unit = convert_high_precision_type<Unit>(y);
         //truncate downward if it went up due to negative number
@@ -582,7 +586,7 @@ namespace boost { namespace polygon{
         // assumes that this function determines exact intersections (in the sense that we determined the unique grid
         // point such that [0,1)^2 translated to that point contains the intersection). To fulfil this guarantee,
         // we explicitly query `intersects_grid` and shift the computed intersection point if necessary.
-        if (!intersects_grid(result, he1) || !intersects_grid(result, he2)) {
+        if (!round_closest && !(intersects_grid(result, he1) && intersects_grid(result, he2))) {
           const Point candidate10(x_unit + 1, y_unit);
           const Point candidate01(x_unit, y_unit + 1);
           const Point candidate11(x_unit + 1, y_unit + 1);
