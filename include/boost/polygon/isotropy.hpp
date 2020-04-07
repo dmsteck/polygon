@@ -523,3 +523,7 @@ namespace boost { namespace polygon{
 }
 }
 #endif
+
+#ifdef BOOST_POLYGON_USE_GMP
+#include <boost/polygon/gmp_override.hpp>
+#endif

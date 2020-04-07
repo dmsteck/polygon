@@ -26,7 +26,7 @@ namespace boost { namespace polygon {
       return (*this);
     }
     inline operator int() const {
-      std::cout << "cast\n";
+      //std::cout << "cast\n";
       mpz_class num = v_.get_num();
       mpz_class den = v_.get_den();
       num /= den;
@@ -116,7 +116,7 @@ namespace boost { namespace polygon {
   };
 
   template <>
-  int convert_high_precision_type<int>(const mpq_class& v) {
+  inline int convert_high_precision_type<int>(const mpq_class& v) {
     mpz_class num = v.get_num();
     mpz_class den = v.get_den();
     num /= den;

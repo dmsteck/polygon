@@ -15,3 +15,13 @@ add_library(Boost::polygon ALIAS boost_polygon)
 target_include_directories(boost_polygon INTERFACE include)
 
 target_link_libraries(boost_polygon INTERFACE Boost::config)
+
+# Use this to configure the library to link against GMP
+set(BOOST_POLYGON_USE_GMP "Use GMP for exact intersections" OFF)
+
+if(BOOST_POLYGON_USE_GMP)
+    find_library(gmp REQUIRED)
+    target_link_libraries(boost_polygon gmp)
+
+    target_compile_definitions(boost_polygon -DBOOST_POLYGON_USE_GMP)
+endif()
